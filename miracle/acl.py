@@ -2,7 +2,8 @@ from collections import defaultdict
 
 
 class Acl(object):
-    def __init__(self):
+
+    def __init__(self, **kwargs):
         #: Set of defined roles
         self._roles = set()
 
@@ -11,6 +12,14 @@ class Acl(object):
 
         #: Grants: set( (role, resource, permission) )
         self._grants = set()
+
+        self.options = {
+            'allow_wildcards': kwargs.get('allow_wildcards',False)
+        }
+
+    @property
+    def wildcards_allowed(self):
+        return self.options.get('allow_wildcards')
 
     #region Add
 
@@ -177,6 +186,8 @@ class Acl(object):
         """
         ret = {}
         for resource, permissions in self._structure.items():
+            if self.wildcards_allowed:
+                permissions = [p for p in permissions if p != '*']
             ret[resource] = set(permissions)
         return ret
 
@@ -252,7 +263,8 @@ class Acl(object):
     #region Check
 
     def check(self, role, resource, permission):
-        """ Test whether the given role has access to the resource with the specified permission.
+        """ Test whether the given role has access to the resource with the specified permission, which may either be
+        the single granted permission, or by using a wildcard for all permissions on the resource
 
         :param role: The role to check the access for
         :type role: str
@@ -262,7 +274,10 @@ class Acl(object):
         :type permission: str
         :rtype: bool
         """
-        return (role, resource, permission) in self._grants
+        if self.wildcards_allowed:
+            return (role, resource, permission) in self._grants or (role, resource, '*') in self._grants
+        else:
+            return (role, resource, permission) in self._grants
 
     def check_any(self, roles, resource, permission):
         """ Test whether ANY of the given roles have access to the resource with the specified permission.
@@ -280,7 +295,10 @@ class Acl(object):
             return False
 
         # Any
-        return any((role, resource, permission) in self._grants for role in roles)
+        if self.wildcards_allowed:
+            return any((role, resource, permission) in self._grants or (role, resource, '*') in self._grants for role in roles)
+        else:
+            return any((role, resource, permission) in self._grants for role in roles)
 
     def check_all(self, roles, resource, permission):
         """ Test whether ALL of the given roles have access to the resource with the specified permission.
@@ -298,7 +316,12 @@ class Acl(object):
             return False
 
         # all
-        return all((role, resource, permission) in self._grants for role in roles)
+        if self.wildcards_allowed:
+            return all(
+                (role, resource, permission) in self._grants or (role, resource, '*') in self._grants for role in roles)
+        else:
+            return all((role, resource, permission) in self._grants for role in roles)
+
 
     #endregion
 
@@ -437,12 +460,14 @@ class Acl(object):
 
     def __getstate__(self):
         return {
+            'options': self.options,
             'roles': self.get_roles(),
             'struct': self.get(),
             'grants': self.show()
         }
 
     def __setstate__(self, state):
+        self.options = state['options']
         self.add_roles(state['roles'])
         self.add(state['struct'])
         self.grants(state['grants'])

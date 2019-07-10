@@ -42,3 +42,4 @@ __pycache__
 # ===[ EXCLUDES ]=== #
 !.gitkeep
 !.htaccess
+venv/

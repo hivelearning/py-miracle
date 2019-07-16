@@ -388,7 +388,7 @@ class TestAclStructure(unittest.TestCase):
             acl2.__getstate__(),
         )
 
-        # ACL states holds the options, will override those provided in the constructor
+        # ACL state holds the options, will override those provided in the constructor
         acl3 = miracle.Acl(allow_wildcards=False)
         acl3.__setstate__(acl.__getstate__())
 
